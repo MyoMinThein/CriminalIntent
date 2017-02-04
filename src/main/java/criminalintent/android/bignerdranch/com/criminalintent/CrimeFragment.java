@@ -4,9 +4,11 @@ import android.app.Activity;
 import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.database.Cursor;
+import android.graphics.Bitmap;
 import android.net.Uri;
 import android.os.Bundle;
 import android.provider.ContactsContract;
+import android.provider.MediaStore;
 import android.support.v4.app.Fragment;
 import android.support.v4.app.FragmentManager;
 import android.support.v4.app.ShareCompat;
@@ -20,7 +22,11 @@ import android.widget.Button;
 import android.widget.CheckBox;
 import android.widget.CompoundButton;
 import android.widget.EditText;
+import android.widget.ImageButton;
+import android.widget.ImageView;
+import android.widget.Toast;
 
+import java.io.File;
 import java.util.Date;
 import java.util.UUID;
 
@@ -31,6 +37,7 @@ import java.util.UUID;
 
 public class CrimeFragment extends Fragment {
     private Crime mCrime;
+    private File mPhotoFile;
     private EditText mTitleField;
     private Button mDateButton;
     private Button mTimeButton;
@@ -38,11 +45,15 @@ public class CrimeFragment extends Fragment {
     private Button mReportButton;
     private Button mSuspectButton;
     private Button mCallButton;
+    private ImageButton mPhotoButton;
+    private ImageView mPhotoView;
     private static final String ARG_CRIME_ID = "crime_id";
     private static final String DIALOG_DATE = "DialogDate";
 
     private static final int REQUEST_DATE = 0;
     private static final int REQUEST_CONTACT = 1;
+    private static final int REQUEST_PHOTO = 2;
+    private static final int REQUEST_PHOTO_LARGE = 3;
 
     public static CrimeFragment newInstance(UUID crimeId) {
         Bundle args = new Bundle();
@@ -58,6 +69,7 @@ public class CrimeFragment extends Fragment {
         mCrime = new Crime();
         UUID crimeId = (UUID) getArguments().getSerializable(ARG_CRIME_ID);
         mCrime = CrimeLab.get(getActivity()).getCrime(crimeId);
+        mPhotoFile = CrimeLab.get(getActivity()).getPhotoFile(mCrime);
     }
 
     @Override
@@ -71,25 +83,27 @@ public class CrimeFragment extends Fragment {
     public View onCreateView(LayoutInflater inflater, ViewGroup container,
                              Bundle savedInstanceState) {
         View v = inflater.inflate(R.layout.fragment_crime, container, false);
-        mTitleField = (EditText)v.findViewById(R.id.crime_title);
+        mTitleField = (EditText) v.findViewById(R.id.crime_title);
         mTitleField.setText(mCrime.getTitle());
         mTitleField.addTextChangedListener(new TextWatcher() {
             @Override
             public void beforeTextChanged(
                     CharSequence s, int start, int count, int after) {
-        // This space intentionally left blank
+                // This space intentionally left blank
             }
+
             @Override
             public void onTextChanged(
                     CharSequence s, int start, int before, int count) {
                 mCrime.setTitle(s.toString());
             }
+
             @Override
             public void afterTextChanged(Editable s) {
-        // This one too
+                // This one too
             }
         });
-        mDateButton = (Button)v.findViewById(R.id.crime_date);
+        mDateButton = (Button) v.findViewById(R.id.crime_date);
         updateDate();
         //mDateButton.setText(new DateFormat().format("EEEE, MMM dd,yyyy", mCrime.getDate()).toString());
         mDateButton.setOnClickListener(new View.OnClickListener() {
@@ -104,8 +118,7 @@ public class CrimeFragment extends Fragment {
         });
 
 
-
-        mSolvedCheckBox = (CheckBox)v.findViewById(R.id.crime_solved);
+        mSolvedCheckBox = (CheckBox) v.findViewById(R.id.crime_solved);
         mSolvedCheckBox.setChecked(mCrime.isSolved());
         mSolvedCheckBox.setOnCheckedChangeListener(new CompoundButton.OnCheckedChangeListener() {
             @Override
@@ -119,7 +132,7 @@ public class CrimeFragment extends Fragment {
         mReportButton.setOnClickListener(new View.OnClickListener() {
             public void onClick(View v) {
 //                Intent i = new Intent(Intent.ACTION_SEND);
-                  Intent i = ShareCompat.IntentBuilder.from(getActivity()).getIntent();
+                Intent i = ShareCompat.IntentBuilder.from(getActivity()).getIntent();
                 i.setType("text/plain");
                 i.putExtra(Intent.EXTRA_TEXT, getCrimeReport());
                 i.putExtra(Intent.EXTRA_SUBJECT,
@@ -146,11 +159,42 @@ public class CrimeFragment extends Fragment {
                 PackageManager.MATCH_DEFAULT_ONLY) == null) {
             mSuspectButton.setEnabled(false);
         }
+        mPhotoButton = (ImageButton) v.findViewById(R.id.crime_camera);
+
+        final Intent captureImage = new Intent(MediaStore.ACTION_IMAGE_CAPTURE);
+        boolean canTakePhoto = mPhotoFile != null &&
+                captureImage.resolveActivity(packageManager) != null;
+        mPhotoButton.setEnabled(canTakePhoto);
+        if (canTakePhoto) {
+            Uri uri = Uri.fromFile(mPhotoFile);
+            captureImage.putExtra(MediaStore.EXTRA_OUTPUT, uri);
+        }
+        mPhotoButton.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                startActivityForResult(captureImage, REQUEST_PHOTO);
+            }
+        });
+        mPhotoView = (ImageView) v.findViewById(R.id.crime_photo);
+        updatePhotoView();
+        mPhotoView.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View view) {
+                Toast.makeText(getContext(), "Image Zoom ++", Toast.LENGTH_LONG).show();
+               /* FragmentManager manager = getFragmentManager();
+                LargePhotoFragment dialog = LargePhotoFragment
+                        .newInstance(mPhotoFile);
+                dialog.setTargetFragment(CrimeFragment.this, REQUEST_PHOTO_LARGE);
+                //dialog.show(manager, DIALOG_DATE);
+                startActivityForResult(captureImage, REQUEST_PHOTO_LARGE);
+                LargePhotoFragment.newInstance(mPhotoFile);*/
+            }
+        });
         Uri number;
-        if(mCrime.getSuspect()==null) {
-             number = Uri.parse("tel:09971504413");
-        }else {
-             number = Uri.parse("tel:09971504413");
+        if (mCrime.getSuspect() == null) {
+            number = Uri.parse("tel:09971504413");
+        } else {
+            number = Uri.parse("tel:09971504413");
         }
         final Intent dialPhone = new Intent(Intent.ACTION_DIAL,
                 number);
@@ -177,7 +221,7 @@ public class CrimeFragment extends Fragment {
             Uri contactUri = data.getData();
 // Specify which fields you want your query to return
 // values for.
-            String[] queryFields = new String[] {
+            String[] queryFields = new String[]{
                     ContactsContract.Contacts.DISPLAY_NAME
             };
 // Perform your query - the contactUri is like a "where"
@@ -198,6 +242,10 @@ public class CrimeFragment extends Fragment {
             } finally {
                 c.close();
             }
+        } else if (requestCode == REQUEST_PHOTO) {
+            updatePhotoView();
+        } else if (requestCode == REQUEST_PHOTO_LARGE) {
+            updatePhotoView();
         }
     }
 
@@ -223,6 +271,16 @@ public class CrimeFragment extends Fragment {
         String report = getString(R.string.crime_report,
                 mCrime.getTitle(), dateString, solvedString, suspect);
         return report;
+    }
+
+    private void updatePhotoView() {
+        if (mPhotoFile == null || !mPhotoFile.exists()) {
+            mPhotoView.setImageDrawable(null);
+        } else {
+            Bitmap bitmap = PictureUtils.getScaledBitmap(
+                    mPhotoFile.getPath(), getActivity());
+            mPhotoView.setImageBitmap(bitmap);
+        }
     }
 
 
