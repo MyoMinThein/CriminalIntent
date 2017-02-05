@@ -7,6 +7,7 @@ import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.ImageView;
+import android.widget.Toast;
 
 import java.io.File;
 
@@ -26,7 +27,7 @@ public class LargePhotoFragment extends Fragment {
     @Override
     public void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-
+        Toast.makeText(getContext(), "onCreate condition", Toast.LENGTH_LONG).show();
 
     }
 
@@ -35,16 +36,20 @@ public class LargePhotoFragment extends Fragment {
                              Bundle savedInstanceState) {
         View v = inflater.inflate(R.layout.fragment_large_photo, container, false);
         mPhotoView = (ImageView) v.findViewById(R.id.crime_photo_large);
+        Toast.makeText(getContext(), "onCreateView condition", Toast.LENGTH_LONG).show();
         updatePhotoView();
+        mPhotoView.setVisibility(View.VISIBLE);
         // Inflate the layout for this fragment
         return inflater.inflate(R.layout.fragment_large_photo, container, false);
 
     }
 
-    private void updatePhotoView() {
+    public void updatePhotoView() {
         if (mPhotoFile == null || !mPhotoFile.exists()) {
             mPhotoView.setImageDrawable(null);
+            Toast.makeText(getContext(), "NULL condition", Toast.LENGTH_LONG).show();
         } else {
+            Toast.makeText(getContext(), Uri.fromFile(mPhotoFile).toString(), Toast.LENGTH_LONG).show();
             mPhotoView.setImageURI( Uri.fromFile(mPhotoFile));
         }
     }
